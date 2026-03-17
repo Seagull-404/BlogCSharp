@@ -1,53 +1,55 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using AutoMapper;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using BlogCSharp.Data;
-using BlogCSharp.DTOs;
-using BlogCSharp.Models;
+
+using WebApplicationDemo.Data;
+using WebApplicationDemo.DTOs;
+using WebApplicationDemo.Models;
 using AutoMapper.QueryableExtensions;
 
-namespace BlogCSharp.Controllers
+namespace WebApplicationDemo.Controllers
 {
    [ApiController]
    [Route("api/[controller]")]
-    public class PostsController : ControllerBase
+    public class PostsController :ControllerBase
     {
         private readonly BlogDbContext _context;
         private readonly IMapper _mapper;
 
-        public PostsController(BlogDbContext context, IMapper mapper)
+        public PostsController(BlogDbContext context,IMapper mapper)
         {
             _context = context;
-            _mapper = mapper;
+            _mapper = mapper; 
         }
 
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<PostListDto>>> GetPosts()
+        public async Task<ActionResult<IEnumerable<PostListDto>>>GetPosts()
         {
             var posts = await _context.Posts
-                .Include(p => p.Author)
-                .Include(p => p.Category)
-                .Include(p => p.Tags)
-                .Where(p => p.Status == PostStatus.Published)
-                .OrderByDescending(post => post.CreatedAt)
-                .ProjectTo<PostListDto>(_mapper.ConfigurationProvider)
-                .ToListAsync();
+            .Include(p => p.Author)
+            .Include(p => p.Category)
+            .Include(p =>p.Tags)
+            .Where(p =>p.Status == PostStatus.Published)
+            .OrderByDescending(posts =>posts.CreatedAt)
+            .ProjectTo<PostListDto>(_mapper.ConfigurationProvider)
+            .ToListAsync();
 
             return Ok(posts);
-        }
-
+        }  
+   
+   
         [HttpGet("{id:long}")]
-        public async Task<ActionResult<PostDetailDto>> GetPost(long id)
+        public async Task<ActionResult<PostDetailDto>> GetPosts(long id)
         {
             var post = await _context.Posts
                 .Include(p => p.Author)
                 .Include(p => p.Category)
                 .Include(p => p.Tags)
-                .FirstOrDefaultAsync(p => p.Id == id && p.Status == PostStatus.Published);
+                .FirstOrDefaultAsync(p => p.Id==id && p.Status == PostStatus.Published);
 
             if (post == null)
             {
@@ -59,20 +61,32 @@ namespace BlogCSharp.Controllers
         }
 
         [HttpPost]
-        public async Task<ActionResult<PostDetailDto>> CreatedPost([FromBody] CreatePostDto dto)
+        public async Task<ActionResult<PostDetailDto>>CreatedPost([FromBody] CreatePostDto dto)
         {
             if (!ModelState.IsValid)
             {
                 return BadRequest(ModelState);
             }
-
+            
             var category = await _context.Categories.FindAsync(dto.CategoryId);
             if (category == null)
             {
-                return BadRequest("Category does not exist.");
+                return BadRequest("分类不存在");
+
             }
 
-            return StatusCode(StatusCodes.Status501NotImplemented, "Create post is not fully implemented yet.");
+            //创建Post实体
+        
+            var post = new Post
+            {
+                Title = dto.Title,
+                Content = dto.Content,
+                CategoryId = dto.CategoryId,
+                AuthorId = 1,
+                Status = PostStatus.Draft,
+                CreatedAt = DateTime.Now
+            }
+
         }
     }
 }
