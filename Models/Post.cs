@@ -8,7 +8,7 @@ using Newtonsoft.Json;
 
 
 
-namespace WebApplicationDemo.Models
+namespace BlogCSharp.Models
 
 {
     public class Post
@@ -23,7 +23,7 @@ namespace WebApplicationDemo.Models
         public DateTime CreatedAt { get; set; } = DateTime.Now;
         public DateTime UpdatedAt { get; set; } = DateTime.Now;
 
-        public PostStatus Status { get; set; } //文章状态
+        public PostStatus Status { get; set; } //文章状�?
         
         public required User Author  { get; set; } 
         public long AuthorId { get; set; }

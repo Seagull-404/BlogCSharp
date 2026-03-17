@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 
-namespace WebApplicationDemo.Models
+namespace BlogCSharp.Models
 {
     public class Category
     {
@@ -11,6 +11,6 @@ namespace WebApplicationDemo.Models
 
         public  string? Name { get; set; }
         public string Description { get; set; }=string.Empty;//分类描述
-        public ICollection<Post> Posts { get; set; } = new List<Post>();//一个分类下可以有多个文章
+        public ICollection<Post> Posts { get; set; } = new List<Post>();//一个分类下可以有多个文�?
     }
 }

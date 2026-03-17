@@ -2,10 +2,10 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using WebApplicationDemo.Models;
+using BlogCSharp.Models;
 using System.ComponentModel.DataAnnotations;
 
-namespace WebApplicationDemo.DTOs
+namespace BlogCSharp.DTOs
 {
     public class UpdatePostDto
     {

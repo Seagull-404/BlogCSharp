@@ -2,11 +2,11 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using WebApplicationDemo.Models;
+using BlogCSharp.Models;
 using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Mvc;
 
-namespace WebApplicationDemo.DTOs
+namespace BlogCSharp.DTOs
 {
     public class PostDetailDto
     {

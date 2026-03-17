@@ -1,4 +1,4 @@
-using WebApplicationDemo.Data;
+using BlogCSharp.Data;
 using Microsoft.EntityFrameworkCore;
 using Swashbuckle.AspNetCore.SwaggerGen;
 
@@ -24,11 +24,11 @@ var app = builder.Build();
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
-    app.UseSwagger();                     // ✅ 开启 Swagger JSON 中间件
+    app.UseSwagger();                     // �?开�?Swagger JSON 中间�?
     app.UseSwaggerUI(settings =>
     {
         settings.SwaggerEndpoint("/swagger/v1/swagger.json", "API V1");
-        // 自定义 UI 设置
+        // 自定�?UI 设置
         // settings.DocExpansion(Swashbuckle.AspNetCore.SwaggerUI.DocExpansion.None);
         // settings.ShowExtensions();
     });

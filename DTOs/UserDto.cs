@@ -4,7 +4,7 @@ using System.Diagnostics.Eventing.Reader;
 using System.Linq;
 using System.Threading.Tasks;
 
-namespace WebApplicationDemo.DTOs
+namespace BlogCSharp.DTOs
 {
     public class UserDto
     {

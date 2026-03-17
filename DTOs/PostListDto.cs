@@ -1,9 +1,9 @@
 using System;
 using System.Collections.Generic;
-using WebApplicationDemo.Models;
+using BlogCSharp.Models;
 
 
-namespace WebApplicationDemo.DTOs
+namespace BlogCSharp.DTOs
 {
     public class PostListDto
     {

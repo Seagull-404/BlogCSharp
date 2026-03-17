@@ -1,9 +1,9 @@
-﻿using System;
+using System;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
-namespace WebApplicationDemo.Migrations
+namespace BlogCSharp.Migrations
 {
     /// <inheritdoc />
     public partial class InitialCreate : Migration

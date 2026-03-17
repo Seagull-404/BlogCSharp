@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using System.ComponentModel.DataAnnotations;
 
 
-namespace WebApplicationDemo.Models
+namespace BlogCSharp.Models
 {
     public class User
     {

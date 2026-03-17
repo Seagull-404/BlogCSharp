@@ -3,16 +3,16 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using AutoMapper;
-using WebApplicationDemo.Models;
-using WebApplicationDemo.DTOs;
+using BlogCSharp.Models;
+using BlogCSharp.DTOs;
 
-namespace WebApplicationDemo.Data
+namespace BlogCSharp.Data
 {
     public class MappingProfile : Profile
     {
         public MappingProfile()
         {
-            CreateMap<Post,PostListDto>()  //Post 映射到 PostListDto
+            CreateMap<Post,PostListDto>()  //Post 映射�?PostListDto
             .ForMember(dest =>dest.AuthorName,opt => opt.MapFrom(src =>src.Author.Name))
                  .ForMember(dest =>dest.CategoryName,opt => opt.MapFrom(src => src.Category.Name))
                  .ForMember(dest =>dest.Tags,opt => opt.MapFrom(src =>src.Tags.Select(t => t.Name).ToList()));
