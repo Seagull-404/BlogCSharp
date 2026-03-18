@@ -123,7 +123,7 @@ app.MapGet("/weatherforecast", () =>
 
 app.UseAuthentication();  // 认证中间件
 app.UseAuthorization();    // 授权中间件
-
+app.MapControllers(); // 注册所有控制器的路由
 app.Run();
 
 record WeatherForecast(DateOnly Date, int TemperatureC, string? Summary)

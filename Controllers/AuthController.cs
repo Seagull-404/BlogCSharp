@@ -94,7 +94,9 @@ public class AuthController : ControllerBase
             {
                 Id = user.Id,
                 UserName = user.UserName,
-                Token = GenerateJwtToken(user)
+                Token = GenerateJwtToken(user),
+                Role = user.Role,
+                Email = user.Email
             });
     }
         
