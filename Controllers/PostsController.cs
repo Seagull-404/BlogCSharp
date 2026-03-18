@@ -1,92 +1,254 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
 using AutoMapper;
+using AutoMapper.QueryableExtensions;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using BlogCSharp.Data;
+using BlogCSharp.DTOs;
+using BlogCSharp.Models;
+using Microsoft.AspNetCore.Authorization;
 
-using WebApplicationDemo.Data;
-using WebApplicationDemo.DTOs;
-using WebApplicationDemo.Models;
-using AutoMapper.QueryableExtensions;
-
-namespace WebApplicationDemo.Controllers
+namespace BlogCSharp.Controllers
 {
-   [ApiController]
-   [Route("api/[controller]")]
-    public class PostsController :ControllerBase
+    // 这个控制器专门负责“文章”资源的 HTTP 接口。
+    // 它当前承担的是 API 入口职责：
+    // 1. 接收客户端请求
+    // 2. 调用 DbContext 查询或保存数据
+    // 3. 使用 AutoMapper 把实体转换成 DTO
+    // 4. 返回合适的 HTTP 响应
+    //
+    // 注意：
+    // 这里仍然是学习项目阶段，所以业务逻辑还没有完全拆到 Service 层。
+    // 在企业项目里，随着复杂度上升，这些逻辑通常会进一步下沉。
+    [ApiController]
+    [Route("api/[controller]")]
+    public class PostsController : ControllerBase
     {
+        // 数据库上下文，用来查询和保存文章、分类、标签、用户等数据。
         private readonly BlogDbContext _context;
+
+        // AutoMapper 用来负责实体和 DTO 之间的转换，避免手工一个字段一个字段赋值。
         private readonly IMapper _mapper;
 
-        public PostsController(BlogDbContext context,IMapper mapper)
+        public PostsController(BlogDbContext context, IMapper mapper)
         {
+            // 构造函数通过依赖注入拿到需要的对象。
+            // ASP.NET Core 会在运行时自动帮我们创建并传入这些依赖。
             _context = context;
-            _mapper = mapper; 
+            _mapper = mapper;
         }
 
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<PostListDto>>>GetPosts()
+        public async Task<ActionResult<IEnumerable<PostListDto>>> GetPosts()
         {
+            // 这是公开的文章列表接口。
+            // 当前设计规则是：未登录用户只能看到已发布的文章，草稿和归档文章不返回。
+            //
+            // 这里返回的不是 Post 实体，而是 PostListDto。
+            // 原因是列表接口不应该把实体内部结构直接暴露给前端。
             var posts = await _context.Posts
-            .Include(p => p.Author)
-            .Include(p => p.Category)
-            .Include(p =>p.Tags)
-            .Where(p =>p.Status == PostStatus.Published)
-            .OrderByDescending(posts =>posts.CreatedAt)
-            .ProjectTo<PostListDto>(_mapper.ConfigurationProvider)
-            .ToListAsync();
+                // 只查询状态为 Published 的文章。
+                .Where(post => post.Status == PostStatus.Published)
+                // 按创建时间倒序排列，让最新文章优先展示。
+                .OrderByDescending(post => post.CreatedAt)
+                // 直接把查询结果投影成列表 DTO。
+                // 这样可以让查询结果更贴近接口需要的结构。
+                .ProjectTo<PostListDto>(_mapper.ConfigurationProvider)
+                // 异步执行查询，并最终拿到 DTO 列表。
+                .ToListAsync();
 
+            // 返回 HTTP 200，并把文章列表作为响应体返回。
             return Ok(posts);
-        }  
-   
-   
-        [HttpGet("{id:long}")]
-        public async Task<ActionResult<PostDetailDto>> GetPosts(long id)
-        {
-            var post = await _context.Posts
-                .Include(p => p.Author)
-                .Include(p => p.Category)
-                .Include(p => p.Tags)
-                .FirstOrDefaultAsync(p => p.Id==id && p.Status == PostStatus.Published);
+        }
 
+        [HttpGet("{id:long}")]
+        public async Task<ActionResult<PostDetailDto>> GetPost(long id)
+        {
+            // 这是“获取单篇文章详情”的接口。
+            // 路由中的 id 会自动绑定到方法参数 id。
+            //
+            // 这里同样只允许访问已发布文章，避免未公开内容被直接通过 ID 猜出来。
+            var post = await _context.Posts
+                // 因为详情 DTO 需要作者、分类、标签信息，
+                // 所以这里把相关导航属性一起加载出来。
+                .Include(post => post.Author)
+                .Include(post => post.Category)
+                .Include(post => post.Tags)
+                // 查询指定 id 且状态为 Published 的文章。
+                .FirstOrDefaultAsync(post => post.Id == id && post.Status == PostStatus.Published);
+
+            // 如果没有查到，返回 404。
+            // 这里的“没查到”既可能是文章不存在，也可能是文章不是已发布状态。
             if (post == null)
             {
                 return NotFound();
             }
 
+            // 把实体转换成详情 DTO，再返回给客户端。
             var result = _mapper.Map<PostDetailDto>(post);
             return Ok(result);
         }
 
         [HttpPost]
-        public async Task<ActionResult<PostDetailDto>>CreatedPost([FromBody] CreatePostDto dto)
+        [Authorize]
+        public async Task<ActionResult<PostDetailDto>> CreatePost([FromBody] CreatePostDto dto)
         {
+            // [ApiController] 已经会自动处理一部分模型验证，
+            // 这里保留显式判断，方便你在学习阶段更直观看到验证流程。
             if (!ModelState.IsValid)
             {
                 return BadRequest(ModelState);
             }
-            
+
+            // 先验证分类是否存在。
+            // 如果客户端传入一个不存在的 CategoryId，就不应该继续创建文章。
             var category = await _context.Categories.FindAsync(dto.CategoryId);
             if (category == null)
             {
-                return BadRequest("分类不存在");
-
+                return BadRequest("Category does not exist.");
             }
 
-            //创建Post实体
-        
+            // 当前项目还没有接入 JWT 认证。
+            // 所以这里临时采用“取数据库中第一个用户作为作者”的过渡方案。
+            //
+            // 这只是为了在学习阶段先跑通“创建文章”链路，
+            // 真正企业项目里，这里的作者应该来自当前登录用户的身份信息。
+            var author = await _context.Users.OrderBy(user => user.Id).FirstOrDefaultAsync();
+            if (author == null)
+            {
+                return BadRequest("No author user exists. Create a user before creating posts.");
+            }
+
+            // 根据传入的 DTO 构造 Post 实体。
+            // 注意：这里除了 DTO 字段，还补充了系统自己控制的字段：
+            // - AuthorId / Author
+            // - CreatedAt
+            // - UpdatedAt
             var post = new Post
             {
                 Title = dto.Title,
                 Content = dto.Content,
                 CategoryId = dto.CategoryId,
-                AuthorId = 1,
-                Status = PostStatus.Draft,
-                CreatedAt = DateTime.Now
+                Category = category,
+                AuthorId = author.Id,
+                Author = author,
+                Status = dto.PostStatus,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            };
+
+            if (dto.TagIds.Any())
+            {
+                // 只加载数据库里真实存在的标签。
+                // 这样即使客户端传了不存在的 TagId，也不会把无效关系挂上去。
+                var tags = await _context.Tags
+                    .Where(tag => dto.TagIds.Contains(tag.Id))
+                    .ToListAsync();
+
+                post.Tags = tags;
             }
 
+            // 把新文章加入 EF Core 跟踪，并保存到数据库。
+            _context.Posts.Add(post);
+            await _context.SaveChangesAsync();
+
+            // 保存成功后，把实体转换成详情 DTO 返回。
+            // 使用 CreatedAtAction 表达“资源已创建”，并附带获取详情的地址。
+            var result = _mapper.Map<PostDetailDto>(post);
+            return CreatedAtAction(nameof(GetPost), new { id = post.Id }, result);
+        }
+
+        [HttpPut("{id:long}")]
+        [Authorize]
+        public async Task<IActionResult> UpdatePost(long id, [FromBody] UpdatePostDto dto)
+        {
+            // 先检查请求体是否满足 DTO 验证规则。
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(ModelState);
+            }
+
+            // 更新文章时，要把 Tags 一起加载进来。
+            // 原因是后面要替换多对多关系，如果不先加载，Clear/Add 的行为就不稳定。
+            var post = await _context.Posts
+                .Include(existingPost => existingPost.Tags)
+                .FirstOrDefaultAsync(existingPost => existingPost.Id == id);
+
+            // 指定 id 的文章不存在时，返回 404。
+            if (post == null)
+            {
+                return NotFound();
+            }
+
+            // 用请求体中的值更新允许修改的字段。
+            post.Title = dto.Title;
+            post.Content = dto.Content;
+
+            // CategoryId 在 Update DTO 中是可空的，
+            // 这意味着“调用方可以不改分类”。
+            if (dto.CategoryId.HasValue)
+            {
+                // 如果调用方想改分类，先验证目标分类是否真实存在。
+                var category = await _context.Categories.FindAsync(dto.CategoryId.Value);
+                if (category == null)
+                {
+                    return BadRequest("Category does not exist.");
+                }
+
+                post.CategoryId = dto.CategoryId.Value;
+            }
+
+            // 先清空当前标签关系。
+            // 这样后面可以把客户端传来的标签集合作为“新的完整标签集合”重新建立。
+            post.Tags.Clear();
+
+            if (dto.TagIds.Any())
+            {
+                // 加载新的标签集合，并重新挂到文章上。
+                var newTags = await _context.Tags
+                    .Where(tag => dto.TagIds.Contains(tag.Id))
+                    .ToListAsync();
+
+                foreach (var tag in newTags)
+                {
+                    post.Tags.Add(tag);
+                }
+            }
+
+            // 状态在更新 DTO 中也是可选的。
+            // 只有客户端显式传了状态，才执行状态变更。
+            if (dto.Status.HasValue)
+            {
+                post.Status = dto.Status.Value;
+            }
+
+            // 每次更新文章时都刷新更新时间。
+            post.UpdatedAt = DateTime.UtcNow;
+
+            // 保存所有修改到数据库。
+            await _context.SaveChangesAsync();
+
+            // 当前先返回一个简单成功结果。
+            // 后续如果你想更贴近 REST 风格，也可以改成返回更新后的详情 DTO。
+            return Ok(new { message = "Post updated successfully.", postId = id });
+        }
+
+        [HttpDelete("{id:long}")]
+        [Authorize]
+        public async Task<IActionResult> DeletePost(long id)
+        {
+            // 删除前先查文章是否存在。
+            var post = await _context.Posts.FindAsync(id);
+            if (post == null)
+            {
+                return NotFound();
+            }
+
+            // 查到之后执行删除，并保存到数据库。
+            _context.Posts.Remove(post);
+            await _context.SaveChangesAsync();
+
+            // 删除成功时返回 204 No Content，表示请求成功但没有响应体。
+            return NoContent();
         }
     }
 }

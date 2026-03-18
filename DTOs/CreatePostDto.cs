@@ -13,6 +13,9 @@ namespace BlogCSharp.DTOs
         [Required(ErrorMessage ="标题不能为空")]
         [MaxLength(100,ErrorMessage ="标题不能超过100字符")]
        public required string Title { get; set;}
+
+       [Required(ErrorMessage = "内容不能为空")]
+       [MinLength(10)]   
        public required string Content { get;set;}
 
        [Required]

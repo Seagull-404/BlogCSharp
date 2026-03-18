@@ -11,12 +11,14 @@ namespace BlogCSharp.Models
     public class User
     {
         public long Id { get; set ;}  
-         [MaxLength(50)]  
-        public string Name { get; set; } = string.Empty;    
+         [MaxLength(50)] 
+         [Required]
+        public string UserName { get; set; } = string.Empty;    
 
         [MaxLength(100)] 
         public string Email { get; set; } = string.Empty;
-        public string Password { get; set; } = string.Empty;
+        
+        public string PasswordHash { get; set; } // 存储加密后的密码，不是明文！
 
         public string Role { get; set; }  = string.Empty;//用户角色
                                                               

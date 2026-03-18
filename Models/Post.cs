@@ -23,9 +23,9 @@ namespace BlogCSharp.Models
         public DateTime CreatedAt { get; set; } = DateTime.Now;
         public DateTime UpdatedAt { get; set; } = DateTime.Now;
 
-        public PostStatus Status { get; set; } //文章状�?
+        public PostStatus Status { get; set; } //文章状�?
         
-        public required User Author  { get; set; } 
+        public  User? Author  { get; set; } 
         public long AuthorId { get; set; }
         public Category? Category { get; set; }
         public long CategoryId { get; set; }
