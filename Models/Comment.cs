@@ -18,8 +18,8 @@ namespace BlogCSharp.Models
 
         public long? ParentId { get; set; }//父评论ID
         
-        public ICollection<Comment> Replies { get; set; } = new List<Comment>();//子评�?
-        public Comment? Parent { get; set; }//父评�?
+        public ICollection<Comment> Replies { get; set; } = new List<Comment>();//子评论?
+        public Comment? Parent { get; set; }//父评论?
 
     }
 }

@@ -1,72 +1,54 @@
-using System.Text;
+﻿using System.Text;
 using BlogCSharp.Data;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 
-
-
-
-
 var builder = WebApplication.CreateBuilder(args);
+
 builder.Services.AddControllers();
 
-// 1. 获取 JWT 配置节
 var jwtSettings = builder.Configuration.GetSection("JwtSettings");
+var secretKey = jwtSettings["SecretKey"]
+    ?? throw new InvalidOperationException("JwtSettings:SecretKey is missing.");
 
-// 2. 配置认证服务
 builder.Services.AddAuthentication(options =>
 {
-    // 设置默认的认证方案为 JWT Bearer
     options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
     options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
 }).AddJwtBearer(options =>
 {
-    // 3. 配置 Token 验证参数
     options.TokenValidationParameters = new TokenValidationParameters
     {
-        // 验证发行者（Issuer）
         ValidateIssuer = true,
-        // 验证接收者（Audience）
         ValidateAudience = true,
-        // 验证 token 过期时间
         ValidateLifetime = true,
-        // 验证签名密钥
         ValidateIssuerSigningKey = true,
-        // 有效的发行者
         ValidIssuer = jwtSettings["Issuer"],
-        // 有效的接收者
         ValidAudience = jwtSettings["Audience"],
-        // 设置签名密钥
-        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSettings["SecretKey"])),
-        // 不允许任何时间偏差（token 过期立即失效）
+        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey)),
         ClockSkew = TimeSpan.Zero
-
     };
 
-    // 4. 配置 JWT Bearer 事件
     options.Events = new JwtBearerEvents
     {
-        // 在接收请求时提取 Token
         OnMessageReceived = context =>
         {
-            // 从请求头中获取 Authorization 头
-            var token = context.Request.Headers["Authorization"].ToString()?.Replace("Bearer ", "");
-            if (!string.IsNullOrEmpty(token))
+            var token = context.Request.Headers["Authorization"]
+                .ToString()
+                .Replace("Bearer ", string.Empty);
+
+            if (!string.IsNullOrWhiteSpace(token))
             {
-                // 将 token 传递给认证中间件
                 context.Token = token;
             }
 
             return Task.CompletedTask;
         },
-        // 认证失败时触发
         OnAuthenticationFailed = context =>
         {
-            // 如果是 token 过期异常
-            if (context.Exception.GetType() == typeof(SecurityTokenExpiredException))
+            if (context.Exception is SecurityTokenExpiredException)
             {
-                // 在响应头中添加过期标记，方便前端判断
                 context.Response.Headers.Append("Token-Expired", "true");
             }
 
@@ -75,58 +57,65 @@ builder.Services.AddAuthentication(options =>
     };
 });
 
+builder.Services.AddAuthorization();
 
-
-// Add services to the container.
-// Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
-
-builder.Services.AddDbContext<BlogDbContext>(options => 
+builder.Services.AddDbContext<BlogDbContext>(options =>
     options.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection")));
-builder.Services.AddAutoMapper(typeof(MappingProfile));
+builder.Services.AddAutoMapper(AppDomain.CurrentDomain.GetAssemblies());
 
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+builder.Services.AddSwaggerGen(c =>
+{
+    c.SwaggerDoc("v1", new Microsoft.OpenApi.Models.OpenApiInfo
+    {
+        Title = "BlogCSharp API",
+        Version = "v1"
+    });
+
+    c.AddSecurityDefinition("Bearer", new Microsoft.OpenApi.Models.OpenApiSecurityScheme
+    {
+        Description = "JWT Authorization header using the Bearer scheme. Enter 'Bearer' [space] and then your token.",
+        Name = "Authorization",
+        In = Microsoft.OpenApi.Models.ParameterLocation.Header,
+        Type = Microsoft.OpenApi.Models.SecuritySchemeType.Http,
+        Scheme = "bearer"
+    });
+
+    c.AddSecurityRequirement(new Microsoft.OpenApi.Models.OpenApiSecurityRequirement
+    {
+        {
+            new Microsoft.OpenApi.Models.OpenApiSecurityScheme
+            {
+                Reference = new Microsoft.OpenApi.Models.OpenApiReference
+                {
+                    Type = Microsoft.OpenApi.Models.ReferenceType.SecurityScheme,
+                    Id = "Bearer"
+                }
+            },
+            Array.Empty<string>()
+        }
+    });
+});
 
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
-    app.UseSwagger();                     // ?开?Swagger JSON 中间件?
-    app.UseSwaggerUI(settings =>
+    app.UseSwagger();
+    app.UseSwaggerUI(options =>
     {
-        settings.SwaggerEndpoint("/swagger/v1/swagger.json", "API V1");
-        // 自定?UI 设置
-        // settings.DocExpansion(Swashbuckle.AspNetCore.SwaggerUI.DocExpansion.None);
-        // settings.ShowExtensions();
+        options.SwaggerEndpoint("/swagger/v1/swagger.json", "BlogCSharp API v1");
+        options.DocumentTitle = "BlogCSharp Swagger UI";
+        options.DisplayRequestDuration();
     });
 }
 
-var summaries = new[]
-{
-    "Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching"
-};
+app.UseHttpsRedirection();
+app.UseAuthentication();
+app.UseAuthorization();
+app.MapControllers();
 
-app.MapGet("/weatherforecast", () =>
-{
-    var forecast =  Enumerable.Range(1, 5).Select(index =>
-        new WeatherForecast
-        (
-            DateOnly.FromDateTime(DateTime.Now.AddDays(index)),
-            Random.Shared.Next(-20, 55),
-            summaries[Random.Shared.Next(summaries.Length)]
-        ))
-        .ToArray();
-    return forecast;
-})
-.WithName("GetWeatherForecast");
-
-app.UseAuthentication();  // 认证中间件
-app.UseAuthorization();    // 授权中间件
-app.MapControllers(); // 注册所有控制器的路由
 app.Run();
 
-record WeatherForecast(DateOnly Date, int TemperatureC, string? Summary)
-{
-    public int TemperatureF => 32 + (int)(TemperatureC / 0.5556);
-}
+
+

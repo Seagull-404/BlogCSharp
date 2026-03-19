@@ -7,6 +7,7 @@ using Microsoft.EntityFrameworkCore;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.IdentityModel.Tokens;
 
 namespace BlogCSharp.Controllers;
@@ -134,6 +135,41 @@ public class AuthController : ControllerBase
             // 5. 返回 Token 字符串
             return new JwtSecurityTokenHandler().WriteToken(token);
         }
+
+        [HttpGet("me")]
+        [Authorize]
+        public async Task<ActionResult> GetCurrentUser()
+        {
+            // 1. 从 Claims 中获取用户 ID
+            var userId =long.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value);
+
+            if (userId == null)
+            {
+                // 理论上如果 [Authorize] 生效，这里不会为空，但作为防御性编程保留
+                return Unauthorized("无效的令牌");
+            }
+            
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.Id  == userId);
+            if (user == null)
+            {
+                // Token 有效但数据库中没用户（例如用户被删除但 Token 未过期）
+                return NotFound("用户不存在");
+            }
+            
+            // 3. 映射到 DTO 返回（避免暴露密码等敏感字段）
+            var userDto= new UserDto
+            {
+                Id = user.Id,
+                UserName = user.UserName,
+                Email = user.Email,
+                Role = user.Role
+            };
+
+            return Ok(userDto);
+
+
+        }
+        
     }
     
     

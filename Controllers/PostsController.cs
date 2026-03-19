@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using AutoMapper;
 using AutoMapper.QueryableExtensions;
 using Microsoft.AspNetCore.Mvc;
@@ -94,7 +95,7 @@ namespace BlogCSharp.Controllers
         {
             // [ApiController] 已经会自动处理一部分模型验证，
             // 这里保留显式判断，方便你在学习阶段更直观看到验证流程。
-            if (!ModelState.IsValid)
+            if (!ModelState.IsValid)        
             {
                 return BadRequest(ModelState);
             }
@@ -104,7 +105,7 @@ namespace BlogCSharp.Controllers
             var category = await _context.Categories.FindAsync(dto.CategoryId);
             if (category == null)
             {
-                return BadRequest("Category does not exist.");
+                return BadRequest("分类不存在！");
             }
 
             // 当前项目还没有接入 JWT 认证。
@@ -112,12 +113,21 @@ namespace BlogCSharp.Controllers
             //
             // 这只是为了在学习阶段先跑通“创建文章”链路，
             // 真正企业项目里，这里的作者应该来自当前登录用户的身份信息。
-            var author = await _context.Users.OrderBy(user => user.Id).FirstOrDefaultAsync();
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
+            if (userIdClaim == null)
+            {
+                //如果获取不到ID,说明用户未登录或Token无效
+                return Unauthorized("无法识别当前用户，请重新登录。");
+            }
+            
+            var userId = long.Parse(userIdClaim.Value);
+            
+            var author = await _context.Users.FindAsync(userId);
             if (author == null)
             {
-                return BadRequest("No author user exists. Create a user before creating posts.");
+                return BadRequest("当前用户不存在");
             }
-
+    
             // 根据传入的 DTO 构造 Post 实体。
             // 注意：这里除了 DTO 字段，还补充了系统自己控制的字段：
             // - AuthorId / Author
@@ -172,13 +182,31 @@ namespace BlogCSharp.Controllers
             var post = await _context.Posts
                 .Include(existingPost => existingPost.Tags)
                 .FirstOrDefaultAsync(existingPost => existingPost.Id == id);
-
+            
             // 指定 id 的文章不存在时，返回 404。
             if (post == null)
             {
                 return NotFound();
             }
-
+            //获取当前用户ID
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
+            if (userIdClaim == null)
+            {
+                return Unauthorized("无法获取当前用户信息");
+            }
+            //获取当前用户ID
+            var currentUserId = long.Parse(userIdClaim.Value);
+            
+            //检查是否是作者或管理员
+            if (post.AuthorId != currentUserId && !User.IsInRole("Admin"))
+            {
+                return Forbid(); //403禁止访问
+            }
+            
+            //查询文章（需要包含AuthorId）
+            
+           
+            
             // 用请求体中的值更新允许修改的字段。
             post.Title = dto.Title;
             post.Content = dto.Content;
@@ -241,6 +269,13 @@ namespace BlogCSharp.Controllers
             if (post == null)
             {
                 return NotFound();
+            }
+            
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
+            var currentUserId = long.Parse(userIdClaim.Value);
+            if (post.AuthorId != currentUserId && !User.IsInRole("Admin"))
+            {
+                return Forbid(); //403禁止访问
             }
 
             // 查到之后执行删除，并保存到数据库。
