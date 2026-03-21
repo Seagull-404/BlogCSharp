@@ -1,10 +1,12 @@
 ﻿using System.Formats.Asn1;
 using System.Security.Claims;
 using BlogCSharp.Data;
-using BlogCSharp.Models;
+using BlogCSharp.MiddleWare;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
 namespace BlogCSharp.Controllers;
+
+
 
 
 [ApiController]
@@ -27,13 +29,13 @@ public class AdminController : ControllerBase
         var user = await _context.Users.FindAsync(userId);
         if (user == null)
         {
-            return NotFound("用户不存在！");
+            throw new Exceptions.NotFoundException("用户",userId);
         }
         
         //2.检查用户是否为管理员
         if (user.Role == "Admin")
         {
-            return BadRequest("该用户已经是管理员！");
+                throw new Exceptions.BusinessException("该用户已经是管理员！");
         }
         
         //3.修改角色
@@ -50,13 +52,13 @@ public class AdminController : ControllerBase
         var user = await _context.Users.FindAsync(userId);
         if (user == null)
         {
-            return NotFound("该用户不存在");
+                throw new Exceptions.NotFoundException("用户",userId);
         }
         // 防止管理员降级自己
         var currentAdminId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         if (user.Id == long.Parse(User.FindFirst(ClaimTypes.NameIdentifier).Value))
         {
-            return BadRequest("不能降级您自己的账号");
+           throw new Exceptions.BusinessException("不能降级您自己的账号");
         }
 
         user.Role = "User";

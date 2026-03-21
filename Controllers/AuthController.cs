@@ -9,6 +9,7 @@ using System.Security.Claims;
 using System.Text;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.IdentityModel.Tokens;
+using BlogCSharp.MiddleWare;
 
 namespace BlogCSharp.Controllers;
 
@@ -37,12 +38,12 @@ public class AuthController : ControllerBase
         //1.检查用户名是否已存在
         if (await _context.Users.AnyAsync(u => u.UserName == registerDto.UserName))
         {
-            return BadRequest("用户名已占用");
+                throw new Exceptions.BusinessException("用户名已占用");  
         }
 
         if (await _context.Users.AnyAsync(u => u.Email == registerDto.Email))
         {
-            return BadRequest("该邮箱已被注册");
+                throw new Exceptions.BusinessException("该邮箱已被注册");
         }
         
         //2.创建新用户对象
@@ -78,7 +79,7 @@ public class AuthController : ControllerBase
 
         if (user == null)
         {
-            return Unauthorized("用户名不存在");
+          throw new Exceptions.NotFoundException("用户名不存在",loginDto.UserName);
         }
         
         //2.验证密码
@@ -87,7 +88,8 @@ public class AuthController : ControllerBase
         
             if (result ==  PasswordVerificationResult.Failed)
             {
-                return Unauthorized("密码错误");
+                throw new Exceptions.BusinessException("密码错误");
+                
             }
             
             //3.登录成功，放回Token
@@ -146,14 +148,15 @@ public class AuthController : ControllerBase
             if (userId == null)
             {
                 // 理论上如果 [Authorize] 生效，这里不会为空，但作为防御性编程保留
-                return Unauthorized("无效的令牌");
+                throw new Exceptions.BusinessException("用户ID为空");
+                
             }
             
             var user = await _context.Users.FirstOrDefaultAsync(u => u.Id  == userId);
             if (user == null)
             {
                 // Token 有效但数据库中没用户（例如用户被删除但 Token 未过期）
-                return NotFound("用户不存在");
+                throw new Exceptions.NotFoundException("用户不存在",userId);
             }
             
             // 3. 映射到 DTO 返回（避免暴露密码等敏感字段）

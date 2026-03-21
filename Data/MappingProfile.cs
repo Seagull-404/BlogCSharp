@@ -16,12 +16,15 @@ namespace BlogCSharp.Data
             .ForMember(dest =>dest.AuthorName,opt => opt.MapFrom(src =>src.Author.UserName))
                  .ForMember(dest =>dest.CategoryName,opt => opt.MapFrom(src => src.Category.Name))
                  .ForMember(dest =>dest.Tags,opt => opt.MapFrom(src =>src.Tags.Select(t => t.Name).ToList()));
-                                             
 
-            CreateMap<Post,PostDetailDto>()//Post -> PostDetail
-                 .ForMember(dest =>dest.AuthorName,opt => opt.MapFrom(src =>src.Author.UserName))
-                 .ForMember(dest =>dest.CategoryName,opt => opt.MapFrom(src => src.Category.Name))
-                 .ForMember(dest =>dest.Tags,opt => opt.MapFrom(src =>src.Tags.Select(t => t.Name).ToList()));
+
+            CreateMap<Post, PostDetailDto>() //Post -> PostDetail
+                .ForMember(dest => dest.AuthorName, opt => opt.MapFrom(src => src.Author.UserName))
+                .ForMember(dest => dest.CategoryName, opt => opt.MapFrom(src => src.Category.Name))
+                .ForMember(dest => dest.Tags, opt => opt.MapFrom(src => src.Tags.Select(t => t.Name)
+                    .ToList()));
+                    
+                    
 
             CreateMap<CreatePostDto,Post>(); //CreatePostDto ->Post
           
@@ -44,8 +47,8 @@ namespace BlogCSharp.Data
                 // AutoMapper 会自动递归处理，因为我们也配置了 Comment -> CommentDto
                 .ForMember(dest => dest.Replies,opt => opt.MapFrom(src => src.Replies));
             
-            CreateMap<CreateCategoryDto,Comment>()
-                ;
+            CreateMap<CreateCommentDto,Comment>();
+
          
 
              

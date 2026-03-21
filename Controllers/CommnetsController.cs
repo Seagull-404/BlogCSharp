@@ -3,19 +3,21 @@ using AutoMapper;
 using BlogCSharp.Data;
 using BlogCSharp.Models;
 using BlogCSharp.DTOs;
+using BlogCSharp.MiddleWare;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.VisualBasic;
+
 
 namespace BlogCSharp.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-public class CommnetsController : ControllerBase
+public class CommentsController : ControllerBase
 {
     private readonly BlogDbContext _context;
     private readonly IMapper _mapper;
-    public CommnetsController(BlogDbContext context, IMapper mapper)
+    public CommentsController(BlogDbContext context, IMapper mapper)
     {
         _context = context;
         _mapper = mapper;
@@ -37,7 +39,8 @@ public class CommnetsController : ControllerBase
     
              
     [HttpPost]
-    public async Task<IActionResult<CommentDto>> CreateComment(CreateCommentDto dto)
+    [Authorize]
+    public async Task<ActionResult<CommentDto>> CreateComment(CreateCommentDto dto)
     {
         //1.获取当前用户ID
         var userIdStr = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
@@ -64,9 +67,41 @@ public class CommnetsController : ControllerBase
         
         var result = await _context.Comments
             .Include(c => c.Author)
-            .FirstOrDefaultAsync( c => c.Id == CompareMethod.Id);
+            .FirstOrDefaultAsync( c => c.Id == comment.Id);
            
         return CreatedAtAction(nameof(GetComment), new { id = comment.Id }, _mapper.Map<CommentDto>(result));
+    }
+
+    [HttpGet("{id}")]
+    public async Task<ActionResult<CommentDto>> GetComment(long id)
+    {
+       
+        
+        var comment = await _context.Comments.FindAsync(id);
+
+        if (comment == null)
+        {
+                throw new Exceptions.NotFoundException("评论不存在",id);
+        }
+        
+        return Ok(_mapper.Map<CommentDto>(comment));
+        
+    }
+
+    [HttpDelete("{id:long}")]
+    [Authorize]
+    public async Task<ActionResult<CommentDto>> DeleteComment(long id)
+    {
+        if (!ModelState.IsValid)
+        {
+            return BadRequest(ModelState);
+        }
+
+        var comment = await _context.Comments.FindAsync(id);
+        
+        _context.Comments.Remove(comment);
+        await _context.SaveChangesAsync();
+        return NoContent();
     }
     
 }

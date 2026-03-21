@@ -1,4 +1,3 @@
-using System.Security.Claims;
 using AutoMapper;
 using AutoMapper.QueryableExtensions;
 using Microsoft.AspNetCore.Mvc;
@@ -7,7 +6,7 @@ using BlogCSharp.Data;
 using BlogCSharp.DTOs;
 using BlogCSharp.Models;
 using Microsoft.AspNetCore.Authorization;
-
+using BlogCSharp.MiddleWare;
 namespace BlogCSharp.Controllers
 {
     // 这个控制器专门负责“文章”资源的 HTTP 接口。
@@ -57,6 +56,9 @@ namespace BlogCSharp.Controllers
                 // 异步执行查询，并最终拿到 DTO 列表。
                 .ToListAsync();
 
+             
+            
+
             // 返回 HTTP 200，并把文章列表作为响应体返回。
             return Ok(posts);
         }
@@ -81,12 +83,39 @@ namespace BlogCSharp.Controllers
             // 这里的“没查到”既可能是文章不存在，也可能是文章不是已发布状态。
             if (post == null)
             {
-                return NotFound();
+               throw new Exceptions.NotFoundException("文章",id);
             }
 
             // 把实体转换成详情 DTO，再返回给客户端。
             var result = _mapper.Map<PostDetailDto>(post);
             return Ok(result);
+        }
+
+        [HttpGet("search")]
+        public async Task<ActionResult<IEnumerable<PostListDto>>> SearchPosts([FromQuery]string? keyword)
+        {
+            var query = _context.Posts.Include(post => post.Tags)//包含标签导航属性
+            .Include(post => post.Author)//包含作者导航属性
+            .Where(post => post.Status == PostStatus.Published)//只查询已发布文章
+            .AsQueryable();
+            if (!string.IsNullOrEmpty(keyword))
+            {
+                query = query.Where(post =>
+                               post.Title.Contains(keyword)||
+                               post.Content.Contains(keyword)||
+                               post.Author.UserName.Contains(keyword)||
+                               post.Tags.Any(t => t.Name.Contains(keyword)));
+            }
+            
+            var results = await query.ProjectTo<PostListDto>(_mapper.ConfigurationProvider).ToListAsync();
+            
+            if (results == null)
+            {
+                throw new Exceptions.NotFoundException("未找到", keyword);
+            }
+            
+            return Ok( results);
+            
         }
 
         [HttpPost]
@@ -95,9 +124,10 @@ namespace BlogCSharp.Controllers
         {
             // [ApiController] 已经会自动处理一部分模型验证，
             // 这里保留显式判断，方便你在学习阶段更直观看到验证流程。
-            if (!ModelState.IsValid)        
+            if (!ModelState.IsValid)
             {
                 return BadRequest(ModelState);
+                
             }
 
             // 先验证分类是否存在。
@@ -105,7 +135,7 @@ namespace BlogCSharp.Controllers
             var category = await _context.Categories.FindAsync(dto.CategoryId);
             if (category == null)
             {
-                return BadRequest("分类不存在！");
+                throw new Exceptions.NotFoundException("分类",dto.CategoryId);
             }
 
             // 当前项目还没有接入 JWT 认证。
@@ -113,21 +143,12 @@ namespace BlogCSharp.Controllers
             //
             // 这只是为了在学习阶段先跑通“创建文章”链路，
             // 真正企业项目里，这里的作者应该来自当前登录用户的身份信息。
-            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
-            if (userIdClaim == null)
-            {
-                //如果获取不到ID,说明用户未登录或Token无效
-                return Unauthorized("无法识别当前用户，请重新登录。");
-            }
-            
-            var userId = long.Parse(userIdClaim.Value);
-            
-            var author = await _context.Users.FindAsync(userId);
+            var author = await _context.Users.OrderBy(user => user.Id).FirstOrDefaultAsync();
             if (author == null)
             {
-                return BadRequest("当前用户不存在");
+                throw new Exceptions.NotFoundException("作者",author.Id);
             }
-    
+
             // 根据传入的 DTO 构造 Post 实体。
             // 注意：这里除了 DTO 字段，还补充了系统自己控制的字段：
             // - AuthorId / Author
@@ -138,7 +159,7 @@ namespace BlogCSharp.Controllers
                 Title = dto.Title,
                 Content = dto.Content,
                 CategoryId = dto.CategoryId,
-                Category = category,
+                Category = category,    
                 AuthorId = author.Id,
                 Author = author,
                 Status = dto.PostStatus,
@@ -174,7 +195,8 @@ namespace BlogCSharp.Controllers
             // 先检查请求体是否满足 DTO 验证规则。
             if (!ModelState.IsValid)
             {
-                return BadRequest(ModelState);
+               return  BadRequest(ModelState);
+                
             }
 
             // 更新文章时，要把 Tags 一起加载进来。
@@ -182,31 +204,15 @@ namespace BlogCSharp.Controllers
             var post = await _context.Posts
                 .Include(existingPost => existingPost.Tags)
                 .FirstOrDefaultAsync(existingPost => existingPost.Id == id);
-            
+
             // 指定 id 的文章不存在时，返回 404。
             if (post == null)
             {
-                return NotFound();
+                throw new Exceptions.NotFoundException("文章",id);
             }
-            //获取当前用户ID
-            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
-            if (userIdClaim == null)
-            {
-                return Unauthorized("无法获取当前用户信息");
-            }
-            //获取当前用户ID
-            var currentUserId = long.Parse(userIdClaim.Value);
+
             
-            //检查是否是作者或管理员
-            if (post.AuthorId != currentUserId && !User.IsInRole("Admin"))
-            {
-                return Forbid(); //403禁止访问
-            }
-            
-            //查询文章（需要包含AuthorId）
-            
-           
-            
+
             // 用请求体中的值更新允许修改的字段。
             post.Title = dto.Title;
             post.Content = dto.Content;
@@ -219,7 +225,7 @@ namespace BlogCSharp.Controllers
                 var category = await _context.Categories.FindAsync(dto.CategoryId.Value);
                 if (category == null)
                 {
-                    return BadRequest("Category does not exist.");
+                    throw new Exceptions.NotFoundException("分类",dto.CategoryId.Value);
                 }
 
                 post.CategoryId = dto.CategoryId.Value;
@@ -268,14 +274,7 @@ namespace BlogCSharp.Controllers
             var post = await _context.Posts.FindAsync(id);
             if (post == null)
             {
-                return NotFound();
-            }
-            
-            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
-            var currentUserId = long.Parse(userIdClaim.Value);
-            if (post.AuthorId != currentUserId && !User.IsInRole("Admin"))
-            {
-                return Forbid(); //403禁止访问
+                throw new Exceptions.NotFoundException("文章",id);
             }
 
             // 查到之后执行删除，并保存到数据库。

@@ -19,6 +19,6 @@ namespace BlogCSharp.DTOs
         public DateTime CreatedAt{ get; set;} 
         public DateTime UpdatedAt{ get; set;} 
         
-        public PostStatus PostStatus{ get; set;}    
+        public PostStatus Status{ get; set;}    
     }
 }

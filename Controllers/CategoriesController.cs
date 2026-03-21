@@ -1,6 +1,7 @@
 ﻿using AutoMapper;
 using BlogCSharp.Data;
 using BlogCSharp.DTOs;
+using BlogCSharp.MiddleWare;
 using BlogCSharp.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -41,7 +42,7 @@ public class CategoriesController : ControllerBase
          //检测分类是否已存在
         if (await _context.Categories.AnyAsync(c => c.Name == categoryDto.Name))
         {
-            return BadRequest("该分类已存在！");
+                throw new Exceptions.BusinessException("该分类已存在！");
         }
         
         // 2. 映射：DTO -> 实体
@@ -68,9 +69,9 @@ public class CategoriesController : ControllerBase
     {
         var category = await _context.Categories.FindAsync(id);
         if (category == null)
-            {
-            return NotFound("分类不存在！");
-            }
+        {
+            throw new Exceptions.NotFoundException("分类不存在！",id);
+        }
         
         // 查到之后执行删除，并保存到数据库。
         _context.Categories.Remove(category);

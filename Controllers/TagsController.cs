@@ -5,6 +5,7 @@ using BlogCSharp.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using BlogCSharp.MiddleWare;
 
 namespace BlogCSharp.Controllers;
 
@@ -52,7 +53,7 @@ public class TagsController: ControllerBase
         var tag = await _context.Tags.FindAsync(id);
         if (tag == null)
         {
-            return BadRequest("标签不存在！");
+            throw new Exceptions.NotFoundException("标签", id);
         }
 
         _context.Tags.Remove(tag);

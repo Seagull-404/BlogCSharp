@@ -1,8 +1,13 @@
 ﻿using System.Text;
+using System.Text.Json.Serialization;
 using BlogCSharp.Data;
+using BlogCSharp.MiddleWare;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+
+
+
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -11,6 +16,7 @@ builder.Services.AddControllers();
 var jwtSettings = builder.Configuration.GetSection("JwtSettings");
 var secretKey = jwtSettings["SecretKey"]
     ?? throw new InvalidOperationException("JwtSettings:SecretKey is missing.");
+
 
 builder.Services.AddAuthentication(options =>
 {
@@ -97,7 +103,19 @@ builder.Services.AddSwaggerGen(c =>
     });
 });
 
+builder.Services.AddControllers().AddJsonOptions(options =>
+{
+    options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+   
+});
+
+
+
+
+
 var app = builder.Build();
+
+app.UseMiddleware<ExceptionHandlingMiddleware>();
 
 if (app.Environment.IsDevelopment())
 {
