@@ -38,29 +38,32 @@ namespace BlogCSharp.Controllers
         }
 
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<PostListDto>>> GetPosts()
+        public async Task<ActionResult<PagedResult<PostListDto>>> GetPosts([FromQuery] PaginationParams pagination)
         {
             // 这是公开的文章列表接口。
             // 当前设计规则是：未登录用户只能看到已发布的文章，草稿和归档文章不返回。
-            //
-            // 这里返回的不是 Post 实体，而是 PostListDto。
-            // 原因是列表接口不应该把实体内部结构直接暴露给前端。
-            var posts = await _context.Posts
-                // 只查询状态为 Published 的文章。
-                .Where(post => post.Status == PostStatus.Published)
-                // 按创建时间倒序排列，让最新文章优先展示。
-                .OrderByDescending(post => post.CreatedAt)
-                // 直接把查询结果投影成列表 DTO。
-                // 这样可以让查询结果更贴近接口需要的结构。
-                .ProjectTo<PostListDto>(_mapper.ConfigurationProvider)
-                // 异步执行查询，并最终拿到 DTO 列表。
-                .ToListAsync();
 
-             
+            //构建查询
+            var query = _context.Posts.Where(post => post.Status == PostStatus.Published)
+                .OrderByDescending(post => post.CreatedAt);
             
-
-            // 返回 HTTP 200，并把文章列表作为响应体返回。
-            return Ok(posts);
+            //计算总数
+            var totalCount = await query.CountAsync(); 
+            
+            //应用分页
+            var items  =  await  query.Skip((pagination.PageNumber -1) * pagination.PageSize)
+                                      .Take(pagination.PageSize).ProjectTo<PostListDto>(_mapper.ConfigurationProvider)
+                                      .ToListAsync();
+          
+           //返回分页结果
+           return Ok(new PagedResult<PostListDto>
+           {
+               Items =  items,
+               TotalCount = totalCount,
+               PageNumber = pagination.PageNumber,
+               PageSize = pagination.PageSize
+               
+           });
         }
 
         [HttpGet("{id:long}")]
@@ -92,14 +95,24 @@ namespace BlogCSharp.Controllers
         }
 
         [HttpGet("search")]
-        public async Task<ActionResult<IEnumerable<PostListDto>>> SearchPosts([FromQuery]string? keyword)
+        public async Task<ActionResult<PagedResult<PostListDto>>> SearchPosts([FromQuery]string? keyword,PaginationParams pagination)
         {
-            var query = _context.Posts.Include(post => post.Tags)//包含标签导航属性
-            .Include(post => post.Author)//包含作者导航属性
+            var query = _context.Posts
             .Where(post => post.Status == PostStatus.Published)//只查询已发布文章
             .AsQueryable();
+
+             keyword.Trim();
+
+            if(string.IsNullOrEmpty(keyword) )
+            {
+                  throw new Exceptions.BusinessException("输入不能为空！");    
+            }
+
+            
+           
             if (!string.IsNullOrEmpty(keyword))
             {
+                 
                 query = query.Where(post =>
                                post.Title.Contains(keyword)||
                                post.Content.Contains(keyword)||
@@ -107,14 +120,19 @@ namespace BlogCSharp.Controllers
                                post.Tags.Any(t => t.Name.Contains(keyword)));
             }
             
-            var results = await query.ProjectTo<PostListDto>(_mapper.ConfigurationProvider).ToListAsync();
+            var totalCount = await query.CountAsync();//计算总数
             
-            if (results == null)
+            var items = await query.Skip((pagination.PageNumber - 1) * pagination.PageSize)
+                .Take(pagination.PageSize).ProjectTo<PostListDto>(_mapper.ConfigurationProvider)
+                .ToListAsync();
+
+            return Ok(new PagedResult<PostListDto>
             {
-                throw new Exceptions.NotFoundException("未找到", keyword);
-            }
-            
-            return Ok( results);
+               Items =   items,
+               TotalCount = totalCount,
+               PageNumber = pagination.PageNumber,
+               PageSize = pagination.PageSize
+            });
             
         }
 
@@ -138,15 +156,11 @@ namespace BlogCSharp.Controllers
                 throw new Exceptions.NotFoundException("分类",dto.CategoryId);
             }
 
-            // 当前项目还没有接入 JWT 认证。
-            // 所以这里临时采用“取数据库中第一个用户作为作者”的过渡方案。
-            //
-            // 这只是为了在学习阶段先跑通“创建文章”链路，
-            // 真正企业项目里，这里的作者应该来自当前登录用户的身份信息。
+           
             var author = await _context.Users.OrderBy(user => user.Id).FirstOrDefaultAsync();
             if (author == null)
             {
-                throw new Exceptions.NotFoundException("作者",author.Id);
+                throw new Exceptions.NotFoundException("作者",404);
             }
 
             // 根据传入的 DTO 构造 Post 实体。

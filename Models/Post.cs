@@ -24,7 +24,7 @@ namespace BlogCSharp.Models
 
         public PostStatus Status { get; set; } //文章状�?
         
-        public  User? Author  { get; set; } 
+        public  required User Author  { get; set; } 
         public long AuthorId { get; set; }
         public Category? Category { get; set; }
         public long CategoryId { get; set; }
