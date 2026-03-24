@@ -1,4 +1,5 @@
-﻿using AutoMapper;
+﻿using System.Security.Claims;
+using AutoMapper;
 using BlogCSharp.Data;
 using BlogCSharp.DTOs;
 using BlogCSharp.Models;
@@ -55,6 +56,24 @@ public class TagsController: ControllerBase
         {
             throw new Exceptions.NotFoundException("标签", id);
         }
+        
+        //获取当前用户ID
+        var userId = long.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value);
+        
+        //查找用户
+        var currentUser = await _context.Users.FirstOrDefaultAsync(u => u.Id == userId);
+        
+        if (currentUser == null)
+        {
+            throw new Exceptions.BusinessException("请登录！");
+        }
+        //判断用户是否有修改权限
+        if (currentUser.Role != "Admin" )
+        {
+            throw new Exceptions.BusinessException("无法删除他人评论！");
+        }
+        
+        
 
         _context.Tags.Remove(tag);
         await _context.SaveChangesAsync();

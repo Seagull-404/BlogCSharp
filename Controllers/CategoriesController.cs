@@ -32,7 +32,7 @@ public class CategoriesController : ControllerBase
     }
     //创建分类
     [HttpPost]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "Admin,Author")]
     public async Task<ActionResult<CategoryDto>> CreateCategory(CreateCategoryDto categoryDto)
     {
         if (!ModelState.IsValid)

@@ -1,9 +1,6 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
-using Microsoft.EntityFrameworkCore;
+
 using System.ComponentModel.DataAnnotations;
+
 
 
 
@@ -16,7 +13,7 @@ namespace BlogCSharp.Models
        [MaxLength(200)] 
         public string Title { get; set; } =string.Empty;
 
-
+        [MaxLength(10000)]
         public string Content { get; set; }=string.Empty;//文章内容
         
         public DateTime CreatedAt { get; set; } = DateTime.Now;
@@ -24,9 +21,9 @@ namespace BlogCSharp.Models
 
         public PostStatus Status { get; set; } //文章状�?
         
-        public  required User Author  { get; set; } 
+        public  User Author  { get; set; } 
         public long AuthorId { get; set; }
-        public Category? Category { get; set; }
+        public Category Category { get; set; }
         public long CategoryId { get; set; }
        
         public ICollection<Tag> Tags { get; set; } = new List<Tag>();//一个文章可以有多个标签

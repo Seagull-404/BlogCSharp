@@ -18,7 +18,7 @@ namespace BlogCSharp.Models
         [MaxLength(100)] 
         public string Email { get; set; } = string.Empty;
         
-        public required string PasswordHash { get; set; } // 存储加密后的密码，不是明文！
+        public required string PasswordHash { get; set; } = string.Empty;// 存储加密后的密码，不是明文！
 
         public string Role { get; set; }  = string.Empty;//用户角色
                                                               

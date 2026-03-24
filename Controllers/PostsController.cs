@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using AutoMapper;
 using AutoMapper.QueryableExtensions;
 using Microsoft.AspNetCore.Mvc;
@@ -7,6 +8,9 @@ using BlogCSharp.DTOs;
 using BlogCSharp.Models;
 using Microsoft.AspNetCore.Authorization;
 using BlogCSharp.MiddleWare;
+using BlogCSharp.Extensions;
+
+
 namespace BlogCSharp.Controllers
 {
     // 这个控制器专门负责“文章”资源的 HTTP 接口。
@@ -44,8 +48,10 @@ namespace BlogCSharp.Controllers
             // 当前设计规则是：未登录用户只能看到已发布的文章，草稿和归档文章不返回。
 
             //构建查询
+           
             var query = _context.Posts.Where(post => post.Status == PostStatus.Published)
                 .OrderByDescending(post => post.CreatedAt);
+            
             
             //计算总数
             var totalCount = await query.CountAsync(); 
@@ -95,23 +101,27 @@ namespace BlogCSharp.Controllers
         }
 
         [HttpGet("search")]
-        public async Task<ActionResult<PagedResult<PostListDto>>> SearchPosts([FromQuery]string? keyword,PaginationParams pagination)
+        public async Task<ActionResult<PagedResult<PostListDto>>> SearchPosts([FromQuery]string? keyword
+            ,[FromQuery]long? CategoryId, [FromQuery] long? tagId,[FromQuery]PaginationParams pagination)
         {
             var query = _context.Posts
             .Where(post => post.Status == PostStatus.Published)//只查询已发布文章
             .AsQueryable();
-
-             keyword.Trim();
-
-            if(string.IsNullOrEmpty(keyword) )
-            {
-                  throw new Exceptions.BusinessException("输入不能为空！");    
-            }
-
             
-           
+            
+             if (CategoryId.HasValue)
+             {
+                 query =  query.Where(post => post.CategoryId == CategoryId.Value);
+             }
+
+             if (tagId.HasValue)
+             {
+                 query = query.Where(post => post.Tags.Any(t => t.Id == tagId));
+             }
+             
             if (!string.IsNullOrEmpty(keyword))
             {
+                keyword = keyword.Trim();
                  
                 query = query.Where(post =>
                                post.Title.Contains(keyword)||
@@ -125,6 +135,8 @@ namespace BlogCSharp.Controllers
             var items = await query.Skip((pagination.PageNumber - 1) * pagination.PageSize)
                 .Take(pagination.PageSize).ProjectTo<PostListDto>(_mapper.ConfigurationProvider)
                 .ToListAsync();
+            
+           
 
             return Ok(new PagedResult<PostListDto>
             {
@@ -147,6 +159,15 @@ namespace BlogCSharp.Controllers
                 return BadRequest(ModelState);
                 
             }
+            //获取当前登录用户ID
+            var userId = User.GetUserIdOrThrow();
+            
+            var author = await _context.Users.FirstOrDefaultAsync(u => u.Id == userId);
+            
+            if (author == null)
+            {
+                throw new Exceptions.NotFoundException("作者",userId);
+            }
 
             // 先验证分类是否存在。
             // 如果客户端传入一个不存在的 CategoryId，就不应该继续创建文章。
@@ -155,14 +176,7 @@ namespace BlogCSharp.Controllers
             {
                 throw new Exceptions.NotFoundException("分类",dto.CategoryId);
             }
-
-           
-            var author = await _context.Users.OrderBy(user => user.Id).FirstOrDefaultAsync();
-            if (author == null)
-            {
-                throw new Exceptions.NotFoundException("作者",404);
-            }
-
+            
             // 根据传入的 DTO 构造 Post 实体。
             // 注意：这里除了 DTO 字段，还补充了系统自己控制的字段：
             // - AuthorId / Author
@@ -206,6 +220,8 @@ namespace BlogCSharp.Controllers
         [Authorize]
         public async Task<IActionResult> UpdatePost(long id, [FromBody] UpdatePostDto dto)
         {
+           
+            
             // 先检查请求体是否满足 DTO 验证规则。
             if (!ModelState.IsValid)
             {
@@ -218,15 +234,24 @@ namespace BlogCSharp.Controllers
             var post = await _context.Posts
                 .Include(existingPost => existingPost.Tags)
                 .FirstOrDefaultAsync(existingPost => existingPost.Id == id);
-
+            //获取当前用户ID
+            var userId =User.GetUserIdOrThrow();
+            
+            
+            //查找用户
+            var currentUser = await _context.Users.FirstOrDefaultAsync(u => u.Id == userId);
+            
             // 指定 id 的文章不存在时，返回 404。
             if (post == null)
             {
                 throw new Exceptions.NotFoundException("文章",id);
+                
             }
-
-            
-
+            //判断用户是否有修改权限
+            if (post.AuthorId != userId && currentUser.Role != "Admin")
+            {
+                throw new Exceptions.BusinessException("没有权限修改！");
+            }
             // 用请求体中的值更新允许修改的字段。
             post.Title = dto.Title;
             post.Content = dto.Content;
@@ -284,12 +309,27 @@ namespace BlogCSharp.Controllers
         [Authorize]
         public async Task<IActionResult> DeletePost(long id)
         {
+            //获取当前用户ID
+            var userId =long.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value);
+            //查找用户
+            var currentUser = await _context.Users.FirstOrDefaultAsync(u => u.Id == userId);
             // 删除前先查文章是否存在。
             var post = await _context.Posts.FindAsync(id);
             if (post == null)
             {
                 throw new Exceptions.NotFoundException("文章",id);
             }
+           
+            if (currentUser == null)
+            {
+                throw new Exceptions.BusinessException("请登录！");
+            }
+            //判断用户是否有修改权限
+            if (currentUser.Role != "Admin" && post.AuthorId != currentUser.Id)
+            {
+                throw new Exceptions.BusinessException("无法删除他人评论！");
+            }
+            
 
             // 查到之后执行删除，并保存到数据库。
             _context.Posts.Remove(post);

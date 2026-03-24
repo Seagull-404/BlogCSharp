@@ -10,6 +10,7 @@ using System.Text;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.IdentityModel.Tokens;
 using BlogCSharp.MiddleWare;
+using BlogCSharp.Extensions;
 
 namespace BlogCSharp.Controllers;
 
@@ -52,8 +53,12 @@ public class AuthController : ControllerBase
             UserName = registerDto.UserName,
             Email = registerDto.Email,
             Role = "User",
-            CreatedAt = DateTime.Now
+            CreatedAt = DateTime.Now,
+            PasswordHash = null
+    
         };
+
+         
         
         //3.对密码进行加密（核心安全步骤）
         user.PasswordHash = _passwordHasher.HashPassword(user, registerDto.PassWord);
@@ -143,14 +148,9 @@ public class AuthController : ControllerBase
         public async Task<ActionResult> GetCurrentUser()
         {
             // 1. 从 Claims 中获取用户 ID
-            var userId =long.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value);
+            var userId = User.GetUserIdOrThrow();
 
-            if (userId == null)
-            {
-                // 理论上如果 [Authorize] 生效，这里不会为空，但作为防御性编程保留
-                throw new Exceptions.BusinessException("用户ID为空");
-                
-            }
+
             
             var user = await _context.Users.FirstOrDefaultAsync(u => u.Id  == userId);
             if (user == null)
