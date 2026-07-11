@@ -8,18 +8,18 @@ namespace BlogCSharp.Models
     public class Comment
     {
         public long Id { get; set; }
-        public required string Content { get; set; }//评论内容
+        public string Content { get; set; } = string.Empty;
         public DateTime CreatedAt { get; set; } = DateTime.Now;
 
-        public required Post Post { get; set; }
-        public long PostId { get; set; }//评论所属文章ID
-        public required User Author { get; set; }
-        public long AuthorId { get; set; }//评论作者ID
+        public Post? Post { get; set; }
+        public long PostId { get; set; }
+        public User? Author { get; set; }
+        public long AuthorId { get; set; }
 
-        public long? ParentId { get; set; }//父评论ID
+        public long? ParentId { get; set; }
         
-        public ICollection<Comment> Replies { get; set; } = new List<Comment>();//子评论?
-        public Comment? Parent { get; set; }//父评论?
+        public ICollection<Comment> Replies { get; set; } = new List<Comment>();
+        public Comment? Parent { get; set; }
 
     }
 }

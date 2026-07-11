@@ -18,14 +18,18 @@ namespace BlogCSharp.Models
         [MaxLength(100)] 
         public string Email { get; set; } = string.Empty;
         
-        public required string PasswordHash { get; set; } = string.Empty;// 存储加密后的密码，不是明文！
+        public required string PasswordHash { get; set; } = string.Empty;
 
-        public string Role { get; set; }  = string.Empty;//用户角色
+        public string Role { get; set; }  = string.Empty;
                                                               
         public DateTime CreatedAt { get; set; }
 
-        public ICollection<Post> Posts { get; set; } = new List<Post>();//一个用户可以有多个文章
-        public ICollection<Comment> Comments { get; set; } = new List<Comment>();//一个用户可以有多个评论
+        public int? Gender { get; set; }
+
+        public DateTime? Birthday { get; set; }
+
+        public ICollection<Post> Posts { get; set; } = new List<Post>();
+        public ICollection<Comment> Comments { get; set; } = new List<Comment>();
        
 
     }

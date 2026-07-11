@@ -1,22 +1,27 @@
-﻿using System.Text;
+using System.Text;
 using System.Text.Json.Serialization;
 using BlogCSharp.Data;
 using BlogCSharp.MiddleWare;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
-
-
-
+using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
+
+Log.Logger = new LoggerConfiguration()
+    .ReadFrom.Configuration(builder.Configuration)
+    .Enrich.FromLogContext()
+    .WriteTo.Console()
+    .CreateLogger();
+
+builder.Host.UseSerilog();
 
 builder.Services.AddControllers();
 
 var jwtSettings = builder.Configuration.GetSection("JwtSettings");
 var secretKey = jwtSettings["SecretKey"]
     ?? throw new InvalidOperationException("JwtSettings:SecretKey is missing.");
-
 
 builder.Services.AddAuthentication(options =>
 {
@@ -69,6 +74,11 @@ builder.Services.AddDbContext<BlogDbContext>(options =>
     options.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection")));
 builder.Services.AddAutoMapper(AppDomain.CurrentDomain.GetAssemblies());
 
+builder.Services.AddScoped<BlogCSharp.Services.IPostService, BlogCSharp.Services.PostService>();
+builder.Services.AddScoped<BlogCSharp.Services.IFileService, BlogCSharp.Services.FileService>();
+builder.Services.AddScoped<BlogCSharp.Services.IUserInfoService, BlogCSharp.Services.UserInfoService>();
+builder.Services.AddScoped<BlogCSharp.Services.ICommentService, BlogCSharp.Services.CommentService>();
+
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
@@ -106,15 +116,11 @@ builder.Services.AddSwaggerGen(c =>
 builder.Services.AddControllers().AddJsonOptions(options =>
 {
     options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
-   
 });
-
-
-
-
 
 var app = builder.Build();
 
+app.UseMiddleware<RequestLoggingMiddleware>();
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 
 if (app.Environment.IsDevelopment())
@@ -129,6 +135,7 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+app.UseStaticFiles();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
