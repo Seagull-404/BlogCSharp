@@ -79,6 +79,14 @@ builder.Services.AddScoped<BlogCSharp.Services.IFileService, BlogCSharp.Services
 builder.Services.AddScoped<BlogCSharp.Services.IUserInfoService, BlogCSharp.Services.UserInfoService>();
 builder.Services.AddScoped<BlogCSharp.Services.ICommentService, BlogCSharp.Services.CommentService>();
 
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowVue",policy =>
+    {         policy.AllowAnyOrigin()
+            .AllowAnyMethod()
+            .AllowAnyHeader();
+    });
+});
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {

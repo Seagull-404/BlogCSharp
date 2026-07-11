@@ -23,8 +23,8 @@ namespace BlogCSharp.Models
         
         public  User Author  { get; set; } 
         public long AuthorId { get; set; }
-        public Category Category { get; set; }
-        public long CategoryId { get; set; }
+        public Category? Category { get; set; }
+        public long? CategoryId { get; set; }
        
         public ICollection<Tag> Tags { get; set; } = new List<Tag>();//一个文章可以有多个标签
         public  ICollection<Comment> Comments { get; set; } = new List<Comment>();//一个文章可以有多个评论

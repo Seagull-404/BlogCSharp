@@ -169,25 +169,24 @@ namespace BlogCSharp.Controllers
                 throw new Exceptions.NotFoundException("作者",userId);
             }
 
-            // 先验证分类是否存在。
-            // 如果客户端传入一个不存在的 CategoryId，就不应该继续创建文章。
-            var category = await _context.Categories.FindAsync(dto.CategoryId);
-            if (category == null)
+            // 分类是可选的，只有传了 CategoryId 才验证分类是否存在
+            Category? category = null;
+            if (dto.CategoryId.HasValue)
             {
-                throw new Exceptions.NotFoundException("分类",dto.CategoryId);
+                category = await _context.Categories.FindAsync(dto.CategoryId.Value);
+                if (category == null)
+                {
+                    throw new Exceptions.NotFoundException("分类", dto.CategoryId.Value);
+                }
             }
-            
+
             // 根据传入的 DTO 构造 Post 实体。
-            // 注意：这里除了 DTO 字段，还补充了系统自己控制的字段：
-            // - AuthorId / Author
-            // - CreatedAt
-            // - UpdatedAt
             var post = new Post
             {
                 Title = dto.Title,
                 Content = dto.Content,
                 CategoryId = dto.CategoryId,
-                Category = category,    
+                Category = category,
                 AuthorId = author.Id,
                 Author = author,
                 Status = dto.PostStatus,

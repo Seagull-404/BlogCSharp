@@ -10,21 +10,20 @@ namespace BlogCSharp.DTOs
 {
     public class CreatePostDto
     {
-        [Required(ErrorMessage ="标题不能为空")]
-        [MaxLength(100,ErrorMessage ="标题不能超过100字符")]
-       public required string Title { get; set;}
+        [Required(ErrorMessage = "标题不能为空")]
+        [MaxLength(100, ErrorMessage = "标题不能超过100字符")]
+        public required string Title { get; set; }
 
-       [Required(ErrorMessage = "内容不能为空")]
-       [MinLength(10)]   
-       public required string Content { get;set;}
+        [Required(ErrorMessage = "内容不能为空")]
+        [MinLength(10)]
+        public required string Content { get; set; }
 
-       [Required]
-       [Range(1, int.MaxValue)]  
-       public long CategoryId{ get; set;} //分类
 
-       public List<long> TagIds {get; set;} = new List<long>();
+        public long? CategoryId { get; set; } //分类（可选）
 
-       public  PostStatus PostStatus{ get; set;} 
+        public List<long> TagIds { get; set; } = new List<long>();
+
+        public PostStatus PostStatus { get; set; }
 
     }
 }
