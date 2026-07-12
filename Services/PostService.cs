@@ -12,15 +12,25 @@ public class PostService : IPostService
 {
     private readonly BlogDbContext _context;
     private readonly IMapper _mapper;
+    private readonly IRedisService _redisService;
 
-    public PostService(BlogDbContext context, IMapper mapper)
+    private const string PostListCacheKey = "posts:list";
+
+    public PostService(BlogDbContext context, IMapper mapper, IRedisService redisService)
     {
         _context = context;
         _mapper = mapper;
+        _redisService = redisService;
     }
 
     public async Task<PagedResult<PostListDto>> GetPosts(PaginationParams pagination)
     {
+        var cachedResult = await _redisService.GetAsync<PagedResult<PostListDto>>(PostListCacheKey);
+        if (cachedResult != null)
+        {
+            return cachedResult;
+        }
+
         var query = _context.Posts
             .Where(post => post.Status == PostStatus.Published)
             .OrderByDescending(post => post.CreatedAt);
@@ -33,17 +43,28 @@ public class PostService : IPostService
             .ProjectTo<PostListDto>(_mapper.ConfigurationProvider)
             .ToListAsync();
 
-        return new PagedResult<PostListDto>
+        var result = new PagedResult<PostListDto>
         {
             Items = items,
             TotalCount = totalCount,
             PageNumber = pagination.PageNumber,
             PageSize = pagination.PageSize
         };
+
+        await _redisService.SetAsync(PostListCacheKey, result, TimeSpan.FromMinutes(5));
+
+        return result;
     }
 
     public async Task<PostDetailDto> GetPost(long id)
     {
+        var cacheKey = $"post:{id}";
+        var cachedPost = await _redisService.GetAsync<PostDetailDto>(cacheKey);
+        if (cachedPost != null)
+        {
+            return cachedPost;
+        }
+
         var post = await _context.Posts
             .Include(post => post.Author)
             .Include(post => post.Category)
@@ -55,11 +76,21 @@ public class PostService : IPostService
             throw new Exceptions.NotFoundException("文章", id);
         }
 
-        return _mapper.Map<PostDetailDto>(post);
+        var result = _mapper.Map<PostDetailDto>(post);
+        await _redisService.SetAsync(cacheKey, result, TimeSpan.FromMinutes(10));
+
+        return result;
     }
 
     public async Task<PagedResult<PostListDto>> SearchPosts(string? keyword, long? categoryId, long? tagId, PaginationParams pagination)
     {
+        var cacheKey = $"posts:search:{keyword}:{categoryId}:{tagId}";
+        var cachedResult = await _redisService.GetAsync<PagedResult<PostListDto>>(cacheKey);
+        if (cachedResult != null)
+        {
+            return cachedResult;
+        }
+
         var query = _context.Posts
             .Where(post => post.Status == PostStatus.Published)
             .AsQueryable();
@@ -92,13 +123,17 @@ public class PostService : IPostService
             .ProjectTo<PostListDto>(_mapper.ConfigurationProvider)
             .ToListAsync();
 
-        return new PagedResult<PostListDto>
+        var result = new PagedResult<PostListDto>
         {
             Items = items,
             TotalCount = totalCount,
             PageNumber = pagination.PageNumber,
             PageSize = pagination.PageSize
         };
+
+        await _redisService.SetAsync(cacheKey, result, TimeSpan.FromMinutes(5));
+
+        return result;
     }
 
     public async Task<PostDetailDto> CreatePost(CreatePostDto dto, long userId)
@@ -109,10 +144,14 @@ public class PostService : IPostService
             throw new Exceptions.NotFoundException("作者", userId);
         }
 
-        var category = await _context.Categories.FindAsync(dto.CategoryId);
-        if (category == null)
+        Category? category = null;
+        if (dto.CategoryId.HasValue)
         {
-            throw new Exceptions.NotFoundException("分类", dto.CategoryId);
+            category = await _context.Categories.FindAsync(dto.CategoryId.Value);
+            if (category == null)
+            {
+                throw new Exceptions.NotFoundException("分类", dto.CategoryId.Value);
+            }
         }
 
         var post = new Post
@@ -138,6 +177,8 @@ public class PostService : IPostService
 
         _context.Posts.Add(post);
         await _context.SaveChangesAsync();
+
+        await _redisService.DeleteAsync(PostListCacheKey);
 
         return _mapper.Map<PostDetailDto>(post);
     }
@@ -199,6 +240,9 @@ public class PostService : IPostService
         post.UpdatedAt = DateTime.UtcNow;
 
         await _context.SaveChangesAsync();
+
+        await _redisService.DeleteAsync(PostListCacheKey);
+        await _redisService.DeleteAsync($"post:{id}");
     }
 
     public async Task DeletePost(long id, long userId)
@@ -222,5 +266,8 @@ public class PostService : IPostService
 
         _context.Posts.Remove(post);
         await _context.SaveChangesAsync();
+
+        await _redisService.DeleteAsync(PostListCacheKey);
+        await _redisService.DeleteAsync($"post:{id}");
     }
 }

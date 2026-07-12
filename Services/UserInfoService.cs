@@ -14,17 +14,33 @@ public class UserInfoService : IUserInfoService
     private readonly BlogDbContext _context;
     private readonly IPasswordHasher<User> _passwordHasher;
     private readonly IMapper _mapper;
+    private readonly IRedisService _redisService;
 
-    public UserInfoService(BlogDbContext context, IMapper mapper)
+    public UserInfoService(BlogDbContext context, IMapper mapper, IRedisService redisService)
     {
         _context = context;
         _mapper = mapper;
+        _redisService = redisService;
         _passwordHasher = new PasswordHasher<User>();
     }
 
     public async Task<User?> GetUserById(long userId)
     {
-        return await _context.Users.FindAsync(userId);
+        var cacheKey = $"user:{userId}";
+        var cachedUser = await _redisService.GetAsync<User>(cacheKey);
+        if (cachedUser != null)
+        {
+            return cachedUser;
+        }
+
+        var user = await _context.Users.FindAsync(userId);
+        
+        if (user != null)
+        {
+            await _redisService.SetAsync(cacheKey, user, TimeSpan.FromMinutes(30));
+        }
+
+        return user;
     }
 
     public async Task<UserDto> UpdateUserInfo(long userId, UpdateProfileDto dto)
@@ -65,6 +81,8 @@ public class UserInfoService : IUserInfoService
 
         await _context.SaveChangesAsync();
 
+        await _redisService.DeleteAsync($"user:{userId}");
+
         return _mapper.Map<UserDto>(user);
     }
 
@@ -84,10 +102,19 @@ public class UserInfoService : IUserInfoService
 
         user.PasswordHash = _passwordHasher.HashPassword(user, dto.NewPassword);
         await _context.SaveChangesAsync();
+
+        await _redisService.DeleteAsync($"user:{userId}");
     }
 
     public async Task<PagedResult<PostListDto>> GetUserPosts(long userId, PaginationParams pagination)
     {
+        var cacheKey = $"user:{userId}:posts";
+        var cachedResult = await _redisService.GetAsync<PagedResult<PostListDto>>(cacheKey);
+        if (cachedResult != null)
+        {
+            return cachedResult;
+        }
+
         var query = _context.Posts
             .Where(post => post.AuthorId == userId)
             .OrderByDescending(post => post.CreatedAt);
@@ -100,12 +127,16 @@ public class UserInfoService : IUserInfoService
             .ProjectTo<PostListDto>(_mapper.ConfigurationProvider)
             .ToListAsync();
 
-        return new PagedResult<PostListDto>
+        var result = new PagedResult<PostListDto>
         {
             Items = items,
             TotalCount = totalCount,
             PageNumber = pagination.PageNumber,
             PageSize = pagination.PageSize
         };
+
+        await _redisService.SetAsync(cacheKey, result, TimeSpan.FromMinutes(5));
+
+        return result;
     }
 }

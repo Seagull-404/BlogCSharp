@@ -6,6 +6,8 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Serilog;
+using StackExchange.Redis;
+using BlogCSharp.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -120,6 +122,16 @@ builder.Services.AddSwaggerGen(c =>
         }
     });
 });
+
+var redisSettings = builder.Configuration.GetSection("RedisSettings");
+var redisConnectionString = redisSettings["ConnectionString"]
+    ?? throw new InvalidOperationException("RedisSettings:ConnectionString is missing.");
+
+builder.Services.AddSingleton<IConnectionMultiplexer>(sp => ConnectionMultiplexer.Connect(redisConnectionString));
+
+builder.Services.AddScoped<IRedisService, BlogCSharp.Services.RedisService>();
+
+
 
 builder.Services.AddControllers().AddJsonOptions(options =>
 {

@@ -3,11 +3,8 @@ using Microsoft.AspNetCore.Authorization;
 using BlogCSharp.Services;
 using BlogCSharp.DTOs;
 using BlogCSharp.Extensions;
-using BlogCSharp.Models;
-using BlogCSharp.MiddleWare;
 using AutoMapper;
-using Microsoft.EntityFrameworkCore;
-using BlogCSharp.Data;
+using BlogCSharp.MiddleWare;
 
 namespace BlogCSharp.Controllers
 {
@@ -19,21 +16,19 @@ namespace BlogCSharp.Controllers
         private readonly IUserInfoService _userInfoService;
         private readonly IPostService _postService;
         private readonly IMapper _mapper;
-        private readonly BlogDbContext _context;
 
-        public ProfileController(IUserInfoService userInfoService, IPostService postService, IMapper mapper, BlogDbContext context)
+        public ProfileController(IUserInfoService userInfoService, IPostService postService, IMapper mapper)
         {
             _userInfoService = userInfoService;
             _postService = postService;
             _mapper = mapper;
-            _context = context;
         }
 
         [HttpGet]
         public async Task<ActionResult<UserDto>> GetProfile()
         {
             var userId = User.GetUserIdOrThrow();
-            var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == userId);
+            var user = await _userInfoService.GetUserById(userId);
             
             if (user == null)
             {
